@@ -12,8 +12,22 @@ struct UsagePopoverView: View {
             onRefresh: onRefresh,
             onQuit: onQuit
         )
-        .frame(width: 370, height: 392, alignment: .topLeading)
-        .background(.regularMaterial)
+        .frame(width: 314, height: 352, alignment: .topLeading)
+        .background(popoverBackground)
+    }
+
+    private var popoverBackground: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.08),
+                    Color.black.opacity(0.13)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
     }
 }
 
@@ -27,11 +41,11 @@ private struct UsageOverviewPane: View {
     var body: some View {
         let snapshot = store.snapshot
 
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             header(snapshot: snapshot)
             accountSummary(store.accountInfo, snapshot: snapshot)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
                 ProgressMetricRow(
                     title: "今日目标",
                     iconName: snapshot.todayProgress >= 1 ? "checkmark.circle.fill" : "target",
@@ -62,27 +76,24 @@ private struct UsageOverviewPane: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .foregroundStyle(.secondary)
-                    Text("更新于 \(updatedText(snapshot.lastUpdated))")
-                    Spacer()
-                }
-                Text("配额来源 \(shortDateTime(snapshot.rateLimitsUpdatedAt))")
+            HStack(spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(.secondary)
+                Text("更新于 \(updatedText(snapshot.lastUpdated))")
+                Spacer()
             }
             .font(.caption)
             .foregroundStyle(.secondary)
             .lineLimit(1)
         }
-        .padding(16)
+        .padding(14)
     }
 
     private func header(snapshot: UsageSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .center, spacing: 12) {
-                Image(nsImage: CircularProgressIcon.image(progress: snapshot.todayProgress, size: 34))
-                    .frame(width: 34, height: 34)
+            HStack(alignment: .center, spacing: 10) {
+                Image(nsImage: CircularProgressIcon.image(progress: snapshot.todayProgress, size: 30))
+                    .frame(width: 30, height: 30)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Codex Usage")
@@ -94,11 +105,11 @@ private struct UsageOverviewPane: View {
 
                 Spacer()
 
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Button(action: onRefresh) {
                         Image(systemName: "arrow.clockwise")
                             .rotationEffect(.degrees(store.isRefreshing ? 180 : 0))
-                            .frame(width: 22, height: 22)
+                            .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
                     .disabled(store.isRefreshing)
@@ -106,14 +117,14 @@ private struct UsageOverviewPane: View {
 
                     Button(action: onOpenSettings) {
                         Image(systemName: "gearshape")
-                            .frame(width: 22, height: 22)
+                            .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
                     .help("设置")
 
                     Button(action: onQuit) {
                         Image(systemName: "power")
-                            .frame(width: 22, height: 22)
+                            .frame(width: 20, height: 20)
                     }
                     .buttonStyle(.plain)
                     .help("退出")
@@ -138,24 +149,34 @@ private struct UsageOverviewPane: View {
     }
 
     private func accountSummary(_ account: CodexAccountInfo, snapshot: UsageSnapshot) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: verificationIcon(account.verification))
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(verificationColor(account.verification))
-                .frame(width: 22)
+                .frame(width: 16)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(account.email ?? account.name ?? "未读取到本地账号")
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                Text(accountSubtitle(account, snapshot: snapshot))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            Text(account.email ?? account.name ?? "未读取到本地账号")
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
 
             Spacer()
+
+            planBadge(account.planType ?? snapshot.rateLimits?.planType)
         }
+    }
+
+    private func planBadge(_ plan: String?) -> some View {
+        let text = (plan?.isEmpty == false ? plan! : "未知").uppercased()
+        let tint = planColor(plan)
+
+        return Text(text)
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(tint.opacity(0.14))
+            .clipShape(Capsule())
     }
 
 }
@@ -285,12 +306,12 @@ private struct ProgressMetricRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 7) {
                 Image(systemName: iconName)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(tint)
-                    .frame(width: 16)
+                    .frame(width: 14)
 
                 Text(title)
                     .font(.subheadline.weight(.semibold))
@@ -318,7 +339,7 @@ private struct ProgressMetricRow: View {
                         .frame(width: proxy.size.width * clampedPercent / 100)
                 }
             }
-            .frame(height: 8)
+            .frame(height: 7)
 
             HStack {
                 Text(detail)
@@ -330,8 +351,8 @@ private struct ProgressMetricRow: View {
             .lineLimit(1)
 
         }
-        .padding(.vertical, 9)
-        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .padding(.horizontal, 8)
         .background(Color.secondary.opacity(0.07))
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
@@ -370,29 +391,6 @@ private func updatedText(_ date: Date?) -> String {
     return formatter.string(from: date)
 }
 
-private func shortDateTime(_ date: Date?) -> String {
-    guard let date else { return "--" }
-    let formatter = DateFormatter()
-    formatter.timeZone = .current
-    formatter.locale = Locale(identifier: "zh_CN")
-    formatter.dateFormat = "MM-dd HH:mm"
-    return formatter.string(from: date)
-}
-
-private func accountSubtitle(_ account: CodexAccountInfo, snapshot: UsageSnapshot) -> String {
-    var parts: [String] = []
-    if let plan = account.planType, plan.isEmpty == false {
-        parts.append(plan.uppercased())
-    } else if let plan = snapshot.rateLimits?.planType, plan.isEmpty == false {
-        parts.append(plan.uppercased())
-    }
-    if let mode = account.authMode, mode.isEmpty == false {
-        parts.append(mode)
-    }
-    parts.append(verificationText(account.verification))
-    return parts.joined(separator: " · ")
-}
-
 private func verificationText(_ verification: AccountVerification) -> String {
     switch verification {
     case .verifiedLocalAuth:
@@ -416,6 +414,19 @@ private func verificationColor(_ verification: AccountVerification) -> Color {
     case .verifiedLocalAuth:
         return .green
     case .missingLocalAuth:
+        return .secondary
+    }
+}
+
+private func planColor(_ plan: String?) -> Color {
+    switch plan?.lowercased() {
+    case "plus":
+        return Color(red: 0.20, green: 0.78, blue: 0.35)
+    case "pro":
+        return Color(red: 0.58, green: 0.40, blue: 0.94)
+    case "team", "enterprise", "business":
+        return Color(red: 0.18, green: 0.55, blue: 0.96)
+    default:
         return .secondary
     }
 }
