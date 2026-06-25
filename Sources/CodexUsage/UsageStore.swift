@@ -19,6 +19,7 @@ public final class UsageStore: ObservableObject {
     /// 上次扫描时间（用于增量扫描）
     private var lastScanDate: Date
     private var cachedEvents: [TokenCountEvent] = []
+    private var lastSnapshotDay: Date?
 
     /// 刷新定时器
     private var refreshTimer: Timer?
@@ -111,6 +112,8 @@ public final class UsageStore: ObservableObject {
                 self.cachedEvents = events
                 self.lastScanDate = Date()
                 self.updateSnapshot(from: events)
+            } else if self.shouldRecomputeForCurrentDay(), self.cachedEvents.isEmpty == false {
+                self.updateSnapshot(from: self.cachedEvents)
             }
             self.isRefreshing = false
         }
@@ -121,7 +124,13 @@ public final class UsageStore: ObservableObject {
             events,
             dailyTokenGoal: SettingsStore.shared.dailyTokenGoal
         )
+        lastSnapshotDay = Calendar.current.startOfDay(for: Date())
         onUpdate?()
+    }
+
+    private func shouldRecomputeForCurrentDay() -> Bool {
+        let today = Calendar.current.startOfDay(for: Date())
+        return lastSnapshotDay != today
     }
 
     private func startTimer() {
