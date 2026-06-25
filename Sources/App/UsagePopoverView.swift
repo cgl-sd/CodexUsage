@@ -185,6 +185,9 @@ struct UsageSettingsView: View {
     @ObservedObject private var store = UsageStore.shared
     @State private var goalWanText = ""
     @State private var saveMessage = ""
+    @State private var updateMessage = ""
+    @State private var isCheckingUpdates = false
+    @State private var latestDownloadURL: URL?
 
     var body: some View {
         let account = store.accountInfo
@@ -241,6 +244,42 @@ struct UsageSettingsView: View {
 
             Divider()
 
+            VStack(alignment: .leading, spacing: 8) {
+                Text("版本与更新")
+                    .font(.subheadline.weight(.semibold))
+
+                HStack {
+                    Text("当前版本 \(appVersionText())")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(action: checkForUpdates) {
+                        Label(isCheckingUpdates ? "检查中" : "检查更新", systemImage: "arrow.down.circle")
+                    }
+                    .controlSize(.small)
+                    .disabled(isCheckingUpdates)
+                }
+
+                if updateMessage.isEmpty == false {
+                    Text(updateMessage)
+                        .font(.caption)
+                        .foregroundStyle(updateMessage.contains("失败") || updateMessage.contains("无法") ? Color.orange : Color.green)
+                        .lineLimit(2)
+                }
+
+                if let latestDownloadURL {
+                    HStack {
+                        Spacer()
+                        Button(action: { downloadAndOpen(url: latestDownloadURL) }) {
+                            Label("下载并打开 DMG", systemImage: "square.and.arrow.down")
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            Divider()
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("数据来源")
                     .font(.subheadline.weight(.semibold))
@@ -253,7 +292,7 @@ struct UsageSettingsView: View {
             Spacer()
         }
         .padding(20)
-        .frame(width: 420, height: 360)
+        .frame(width: 420, height: 420)
         .onAppear {
             goalWanText = String(store.snapshot.dailyTokenGoal / 10_000)
         }
@@ -278,6 +317,106 @@ struct UsageSettingsView: View {
         saveMessage = "已重新读取本地账号与用量"
     }
 
+    private func checkForUpdates() {
+        guard !isCheckingUpdates else { return }
+        isCheckingUpdates = true
+        updateMessage = ""
+        latestDownloadURL = nil
+
+        Task {
+            let latest = await fetchLatestRelease()
+            await MainActor.run {
+                isCheckingUpdates = false
+                guard let latest else {
+                    updateMessage = "检查失败，请确认网络连接后重试。"
+                    return
+                }
+                let current = appVersionText()
+                if isVersion(latest.tagName, newerThan: current) {
+                    updateMessage = "发现新版本 \(latest.tagName)，可下载新版 DMG 覆盖安装。"
+                    latestDownloadURL = latest.downloadURL
+                } else {
+                    updateMessage = "当前已是最新版本。"
+                }
+            }
+        }
+    }
+
+    private func fetchLatestRelease() async -> (tagName: String, url: String, downloadURL: URL?)? {
+        guard let url = URL(string: "https://api.github.com/repos/cgl-sd/CodexUsage/releases/latest") else {
+            return nil
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.timeoutInterval = 8
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                return nil
+            }
+            let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+            let dmg = release.assets.first { $0.name.lowercased().hasSuffix(".dmg") }?.browserDownloadURL
+            return (release.tagName, release.htmlURL, dmg.flatMap(URL.init(string:)))
+        } catch {
+            return nil
+        }
+    }
+
+    private func downloadAndOpen(url: URL) {
+        updateMessage = "正在下载新版 DMG..."
+
+        Task {
+            do {
+                let (temporaryURL, response) = try await URLSession.shared.download(from: url)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    throw URLError(.badServerResponse)
+                }
+                let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? FileManager.default.homeDirectoryForCurrentUser
+                let destination = downloads.appendingPathComponent("CodexUsage-\(Date().timeIntervalSince1970).dmg")
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.moveItem(at: temporaryURL, to: destination)
+
+                await MainActor.run {
+                    updateMessage = "已下载到 Downloads，并已打开 DMG。"
+                    NSWorkspace.shared.open(destination)
+                }
+            } catch {
+                await MainActor.run {
+                    updateMessage = "下载失败，请稍后重试。"
+                }
+            }
+        }
+    }
+
+    private func appVersionText() -> String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        return version ?? "0.1.1"
+    }
+
+    private func isVersion(_ candidate: String, newerThan current: String) -> Bool {
+        let lhs = versionParts(candidate)
+        let rhs = versionParts(current)
+        for index in 0..<max(lhs.count, rhs.count) {
+            let left = index < lhs.count ? lhs[index] : 0
+            let right = index < rhs.count ? rhs[index] : 0
+            if left != right {
+                return left > right
+            }
+        }
+        return false
+    }
+
+    private func versionParts(_ version: String) -> [Int] {
+        version
+            .trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+            .split(separator: ".")
+            .map { Int($0.prefix { $0.isNumber }) ?? 0 }
+    }
+
     private func accountLine(_ title: String, _ value: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
@@ -290,6 +429,28 @@ struct UsageSettingsView: View {
                 .truncationMode(.middle)
             Spacer()
         }
+    }
+}
+
+private struct GitHubRelease: Decodable {
+    let tagName: String
+    let htmlURL: String
+    let assets: [GitHubReleaseAsset]
+
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlURL = "html_url"
+        case assets
+    }
+}
+
+private struct GitHubReleaseAsset: Decodable {
+    let name: String
+    let browserDownloadURL: String
+
+    enum CodingKeys: String, CodingKey {
+        case name
+        case browserDownloadURL = "browser_download_url"
     }
 }
 

@@ -159,7 +159,7 @@ final class StatusBarController {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 420, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 420, height: 420),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false

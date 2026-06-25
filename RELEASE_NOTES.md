@@ -1,16 +1,15 @@
-# CodexUsage v0.1.0
+# CodexUsage v0.1.1
 
-Initial public release.
+Patch release with UI polish and update-check improvements.
 
-## Highlights
+## Changes
 
-- macOS menu bar app for monitoring local Codex token usage.
-- Daily token goal progress ring.
-- Popover dashboard for daily, 5-hour, and weekly usage.
-- Local account plan display from Codex auth metadata.
-- Configurable daily goal, defaulting to `8000万 token`.
-- Local-only data source from `~/.codex/sessions` and `~/.codex/auth.json`.
-- DMG packaging with generated app icon.
+- Fix daily rollover behavior so the daily usage view recomputes after midnight even when no new Codex log is written.
+- Add in-app update checking from GitHub Releases.
+- Show explicit update results for latest version, network failure, and newer version availability.
+- Add a DMG download flow for newer releases.
+- Refine the popover layout, account plan badge, spacing, and darker background.
+- Keep usage scanning on a background task to avoid UI stalls.
 
 ## Installation
 
