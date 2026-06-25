@@ -14,6 +14,7 @@ CodexUsage is a lightweight macOS menu bar app for monitoring local Codex token 
   - 5-hour quota usage,
   - weekly quota usage,
   - local account plan display.
+- Daily usage includes a without-cache estimate alongside the goal progress.
 - Warning colors when quota remaining falls to 20% or less.
 - Local refresh button for rescanning Codex usage logs.
 - Settings window for changing the daily token goal.

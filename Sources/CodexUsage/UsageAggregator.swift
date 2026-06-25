@@ -50,6 +50,7 @@ public struct UsageAggregator: Sendable {
         return UsageSnapshot(
             dailyTokenGoal: dailyTokenGoal,
             todayUsage: todayCounts,
+            todayUsageWithoutCache: max(0, todayCounts.totalTokens - todayCounts.cachedInputTokens),
             todayProgress: progressRatio(used: todayCounts.totalTokens, goal: dailyTokenGoal),
             rateLimits: rateLimits,
             rateLimitsUpdatedAt: latestWithLimits?.timestamp,
@@ -73,6 +74,8 @@ public struct UsageSnapshot: Sendable, Equatable {
     public let dailyTokenGoal: Int
     /// 今日已用（按本地日期聚合的增量之和）
     public let todayUsage: TokenCounts
+    /// 今日已用，排除 cached input token 后的估算值。
+    public let todayUsageWithoutCache: Int
     /// 今日完成进度 0.0–1.0
     public let todayProgress: Double
     /// 最新有效的配额窗口

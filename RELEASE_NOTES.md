@@ -1,5 +1,16 @@
 # CodexUsage Release Notes
 
+## v0.1.3 - 2026-06-25
+
+Usage display refinement for cached token accounting.
+
+### Changes
+
+- Add a "without cache" daily usage value in the main popover.
+- Keep daily goal progress based on total tokens, including cached input tokens.
+- Compute the without-cache estimate as `total_tokens - cached_input_tokens`.
+- Make token count parsing more tolerant of missing fields in local Codex logs, treating missing token counters as zero.
+
 ## v0.1.2 - 2026-06-25
 
 Settings and documentation polish for the next version.

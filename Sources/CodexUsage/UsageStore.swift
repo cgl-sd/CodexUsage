@@ -35,6 +35,7 @@ public final class UsageStore: ObservableObject {
         self.snapshot = UsageSnapshot(
             dailyTokenGoal: SettingsStore.shared.dailyTokenGoal,
             todayUsage: .zero,
+            todayUsageWithoutCache: 0,
             todayProgress: 0,
             rateLimits: nil,
             rateLimitsUpdatedAt: nil,

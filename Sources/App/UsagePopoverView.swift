@@ -51,8 +51,8 @@ private struct UsageOverviewPane: View {
                     iconName: snapshot.todayProgress >= 1 ? "checkmark.circle.fill" : "target",
                     tint: dailyGoalColor(snapshot.todayProgress * 100),
                     percent: snapshot.todayProgress * 100,
-                    detail: "\(formatTokenCount(snapshot.todayUsage.totalTokens)) / \(formatTokenCount(snapshot.dailyTokenGoal))",
-                    resetText: "按本地日志统计"
+                    detail: "含缓存 \(formatTokenCount(snapshot.todayUsage.totalTokens)) / \(formatTokenCount(snapshot.dailyTokenGoal))",
+                    resetText: "不含缓存 \(formatTokenCount(snapshot.todayUsageWithoutCache))"
                 )
 
                 ProgressMetricRow(
@@ -412,7 +412,7 @@ struct UsageSettingsView: View {
 
     private func appVersionText() -> String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        return version ?? "0.1.2"
+        return version ?? "0.1.3"
     }
 
     private func isVersion(_ candidate: String, newerThan current: String) -> Bool {

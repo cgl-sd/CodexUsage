@@ -19,6 +19,29 @@ public struct TokenCounts: Decodable, Equatable, Sendable {
         case totalTokens = "total_tokens"
     }
 
+    public init(
+        inputTokens: Int = 0,
+        cachedInputTokens: Int = 0,
+        outputTokens: Int = 0,
+        reasoningOutputTokens: Int = 0,
+        totalTokens: Int = 0
+    ) {
+        self.inputTokens = inputTokens
+        self.cachedInputTokens = cachedInputTokens
+        self.outputTokens = outputTokens
+        self.reasoningOutputTokens = reasoningOutputTokens
+        self.totalTokens = totalTokens
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        inputTokens = try c.decodeIfPresent(Int.self, forKey: .inputTokens) ?? 0
+        cachedInputTokens = try c.decodeIfPresent(Int.self, forKey: .cachedInputTokens) ?? 0
+        outputTokens = try c.decodeIfPresent(Int.self, forKey: .outputTokens) ?? 0
+        reasoningOutputTokens = try c.decodeIfPresent(Int.self, forKey: .reasoningOutputTokens) ?? 0
+        totalTokens = try c.decodeIfPresent(Int.self, forKey: .totalTokens) ?? 0
+    }
+
     public static let zero = TokenCounts()
 
     public static func + (lhs: TokenCounts, rhs: TokenCounts) -> TokenCounts {
