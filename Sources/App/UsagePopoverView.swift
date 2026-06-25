@@ -12,7 +12,7 @@ struct UsagePopoverView: View {
             onRefresh: onRefresh,
             onQuit: onQuit
         )
-        .frame(width: 340, height: 366, alignment: .topLeading)
+        .frame(width: 370, height: 392, alignment: .topLeading)
         .background(.regularMaterial)
     }
 }
@@ -47,8 +47,7 @@ private struct UsageOverviewPane: View {
                     tint: fiveHourColor(snapshot.rateLimits?.primary?.usedPercent),
                     percent: snapshot.rateLimits?.primary?.usedPercent,
                     detail: percentDetail(snapshot.rateLimits?.primary?.usedPercent),
-                    resetText: resetText(snapshot.rateLimits?.primary?.resetsAt, style: .time),
-                    sourceText: "配额来源 \(shortDateTime(snapshot.rateLimitsUpdatedAt))"
+                    resetText: resetText(snapshot.rateLimits?.primary?.resetsAt, style: .time)
                 )
 
                 ProgressMetricRow(
@@ -57,18 +56,20 @@ private struct UsageOverviewPane: View {
                     tint: weeklyColor(snapshot.rateLimits?.secondary?.usedPercent),
                     percent: snapshot.rateLimits?.secondary?.usedPercent,
                     detail: percentDetail(snapshot.rateLimits?.secondary?.usedPercent),
-                    resetText: resetText(snapshot.rateLimits?.secondary?.resetsAt, style: .date),
-                    sourceText: "配额来源 \(shortDateTime(snapshot.rateLimitsUpdatedAt))"
+                    resetText: resetText(snapshot.rateLimits?.secondary?.resetsAt, style: .date)
                 )
             }
 
             Divider()
 
-            HStack(spacing: 8) {
-                Image(systemName: "clock.arrow.circlepath")
-                    .foregroundStyle(.secondary)
-                Text("更新于 \(updatedText(snapshot.lastUpdated))")
-                Spacer()
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundStyle(.secondary)
+                    Text("更新于 \(updatedText(snapshot.lastUpdated))")
+                    Spacer()
+                }
+                Text("配额来源 \(shortDateTime(snapshot.rateLimitsUpdatedAt))")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -278,7 +279,6 @@ private struct ProgressMetricRow: View {
     let percent: Double?
     let detail: String
     let resetText: String
-    var sourceText: String? = nil
 
     private var clampedPercent: Double {
         min(max(percent ?? 0, 0), 100)
@@ -329,14 +329,8 @@ private struct ProgressMetricRow: View {
             .foregroundStyle(.secondary)
             .lineLimit(1)
 
-            if let sourceText {
-                Text(sourceText)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 9)
         .padding(.horizontal, 10)
         .background(Color.secondary.opacity(0.07))
         .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -395,9 +389,6 @@ private func accountSubtitle(_ account: CodexAccountInfo, snapshot: UsageSnapsho
     if let mode = account.authMode, mode.isEmpty == false {
         parts.append(mode)
     }
-    if let id = account.accountID, id.isEmpty == false {
-        parts.append("账号 \(shortAccountID(id))")
-    }
     parts.append(verificationText(account.verification))
     return parts.joined(separator: " · ")
 }
@@ -440,24 +431,26 @@ private func fiveHourColor(_ percent: Double?) -> Color {
     guard let percent else {
         return Color(red: 0.18, green: 0.70, blue: 0.42)
     }
-    if percent < 70 {
-        return Color(red: 0.18, green: 0.70, blue: 0.42)
-    } else if percent < 90 {
+    if percent >= 80 {
+        return .red
+    } else if percent >= 65 {
         return .orange
+    } else {
+        return Color(red: 0.18, green: 0.70, blue: 0.42)
     }
-    return .red
 }
 
 private func weeklyColor(_ percent: Double?) -> Color {
     guard let percent else {
         return Color(red: 0.38, green: 0.65, blue: 0.98)
     }
-    if percent < 70 {
-        return Color(red: 0.38, green: 0.65, blue: 0.98)
-    } else if percent < 90 {
+    if percent >= 80 {
+        return .red
+    } else if percent >= 65 {
         return Color(red: 0.70, green: 0.38, blue: 0.94)
+    } else {
+        return Color(red: 0.38, green: 0.65, blue: 0.98)
     }
-    return Color(red: 0.83, green: 0.24, blue: 0.48)
 }
 
 private func shortAccountID(_ id: String) -> String {
