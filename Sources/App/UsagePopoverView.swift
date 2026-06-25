@@ -2,27 +2,17 @@ import CodexUsageCore
 import SwiftUI
 
 struct UsagePopoverView: View {
-    @ObservedObject private var store = UsageStore.shared
-    @State private var isShowingSettings = false
-
+    let onOpenSettings: () -> Void
     let onRefresh: () -> Void
     let onQuit: () -> Void
 
     var body: some View {
-        Group {
-            if isShowingSettings {
-                UsageSettingsPane(
-                    onDone: { isShowingSettings = false }
-                )
-            } else {
-                UsageOverviewPane(
-                    onOpenSettings: { isShowingSettings = true },
-                    onRefresh: onRefresh,
-                    onQuit: onQuit
-                )
-            }
-        }
-        .frame(width: 340, height: isShowingSettings ? 410 : 330, alignment: .topLeading)
+        UsageOverviewPane(
+            onOpenSettings: onOpenSettings,
+            onRefresh: onRefresh,
+            onQuit: onQuit
+        )
+        .frame(width: 340, height: 366, alignment: .topLeading)
         .background(.regularMaterial)
     }
 }
@@ -45,16 +35,16 @@ private struct UsageOverviewPane: View {
                 ProgressMetricRow(
                     title: "今日目标",
                     iconName: snapshot.todayProgress >= 1 ? "checkmark.circle.fill" : "target",
-                    tint: .green,
+                    tint: dailyGoalColor(snapshot.todayProgress * 100),
                     percent: snapshot.todayProgress * 100,
                     detail: "\(formatTokenCount(snapshot.todayUsage.totalTokens)) / \(formatTokenCount(snapshot.dailyTokenGoal))",
-                    resetText: "按本地日期统计"
+                    resetText: "按本地日志统计"
                 )
 
                 ProgressMetricRow(
                     title: "5 小时用量",
                     iconName: "clock.fill",
-                    tint: .blue,
+                    tint: fiveHourColor(snapshot.rateLimits?.primary?.usedPercent),
                     percent: snapshot.rateLimits?.primary?.usedPercent,
                     detail: percentDetail(snapshot.rateLimits?.primary?.usedPercent),
                     resetText: resetText(snapshot.rateLimits?.primary?.resetsAt, style: .time),
@@ -64,7 +54,7 @@ private struct UsageOverviewPane: View {
                 ProgressMetricRow(
                     title: "周用量",
                     iconName: "calendar",
-                    tint: .purple,
+                    tint: weeklyColor(snapshot.rateLimits?.secondary?.usedPercent),
                     percent: snapshot.rateLimits?.secondary?.usedPercent,
                     detail: percentDetail(snapshot.rateLimits?.secondary?.usedPercent),
                     resetText: resetText(snapshot.rateLimits?.secondary?.resetsAt, style: .date),
@@ -74,41 +64,75 @@ private struct UsageOverviewPane: View {
 
             Divider()
 
-            HStack(spacing: 10) {
-                Image(systemName: "arrow.triangle.2.circlepath")
+            HStack(spacing: 8) {
+                Image(systemName: "clock.arrow.circlepath")
                     .foregroundStyle(.secondary)
                 Text("更新于 \(updatedText(snapshot.lastUpdated))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
                 Spacer()
-                iconButton("gearshape", help: "设置", action: onOpenSettings)
-                iconButton("arrow.clockwise", help: "刷新", action: onRefresh)
-                iconButton("power", help: "退出", action: onQuit)
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
         }
         .padding(16)
     }
 
     private func header(snapshot: UsageSnapshot) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(nsImage: CircularProgressIcon.image(progress: snapshot.todayProgress, size: 34))
-                .frame(width: 34, height: 34)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 12) {
+                Image(nsImage: CircularProgressIcon.image(progress: snapshot.todayProgress, size: 34))
+                    .frame(width: 34, height: 34)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Codex Usage")
-                    .font(.headline)
-                Text("每日目标 \(formatTokenCount(snapshot.dailyTokenGoal)) token")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Codex Usage")
+                        .font(.headline)
+                    Text("每日目标 \(formatTokenCount(snapshot.dailyTokenGoal)) token")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 6) {
+                    Button(action: onRefresh) {
+                        Image(systemName: "arrow.clockwise")
+                            .rotationEffect(.degrees(store.isRefreshing ? 180 : 0))
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(store.isRefreshing)
+                    .help("重新读取本地 Codex 日志")
+
+                    Button(action: onOpenSettings) {
+                        Image(systemName: "gearshape")
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("设置")
+
+                    Button(action: onQuit) {
+                        Image(systemName: "power")
+                            .frame(width: 22, height: 22)
+                    }
+                    .buttonStyle(.plain)
+                    .help("退出")
+                }
             }
 
-            Spacer()
+            HStack {
+                Text(String(format: "%.1f%%", snapshot.todayProgress * 100))
+                    .font(.system(.title3, design: .rounded, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(dailyGoalColor(snapshot.todayProgress * 100))
 
-            Text(String(format: "%.1f%%", snapshot.todayProgress * 100))
-                .font(.system(.title3, design: .rounded, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(snapshot.todayProgress >= 1 ? .green : .primary)
+                Spacer()
+
+                if store.isRefreshing {
+                    Text("正在刷新")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -120,7 +144,7 @@ private struct UsageOverviewPane: View {
                 .frame(width: 22)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(account.email ?? account.name ?? "未设置账号")
+                Text(account.email ?? account.name ?? "未读取到本地账号")
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
                 Text(accountSubtitle(account, snapshot: snapshot))
@@ -133,70 +157,39 @@ private struct UsageOverviewPane: View {
         }
     }
 
-    private func iconButton(_ systemName: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .frame(width: 20, height: 20)
-        }
-        .buttonStyle(.plain)
-        .help(help)
-    }
 }
 
-private struct UsageSettingsPane: View {
+struct UsageSettingsView: View {
     @ObservedObject private var store = UsageStore.shared
-
-    @State private var displayName = ""
-    @State private var email = ""
-    @State private var accountID = ""
     @State private var goalWanText = ""
-    @State private var validationMessage = ""
-
-    let onDone: () -> Void
+    @State private var saveMessage = ""
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Button(action: onDone) {
-                    Image(systemName: "chevron.left")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.plain)
-                .help("返回")
+        let account = store.accountInfo
 
-                Text("设置")
-                    .font(.headline)
-                Spacer()
-                Button(action: save) {
-                    Image(systemName: "checkmark")
-                        .frame(width: 20, height: 20)
-                }
-                .buttonStyle(.plain)
-                .help("保存")
-                .disabled(parsedGoal == nil)
-            }
+        VStack(alignment: .leading, spacing: 18) {
+            Text("设置")
+                .font(.title3.weight(.semibold))
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("账号信息")
+                Text("本地账号")
                     .font(.subheadline.weight(.semibold))
 
-                LabeledField(title: "显示名", text: $displayName, placeholder: "例如 guangle cao")
-                LabeledField(title: "邮箱", text: $email, placeholder: "name@example.com")
-                LabeledField(title: "账号 ID", text: $accountID, placeholder: "可留空，验证时可自动填入")
+                accountLine("邮箱", account.email ?? "未读取到")
+                accountLine("名称", account.name ?? "未读取到")
+                accountLine("计划", account.planType?.uppercased() ?? "未知")
+                accountLine("账号 ID", account.accountID.map(shortAccountID) ?? "未读取到")
 
-                HStack(spacing: 8) {
-                    Button(action: validateFromLocalAuth) {
-                        Label("从本地 Codex 验证", systemImage: "checkmark.shield")
+                HStack {
+                    Text(verificationText(account.verification))
+                        .font(.caption)
+                        .foregroundStyle(verificationColor(account.verification))
+                    Spacer()
+                    Button(action: refreshLocal) {
+                        Label("重新读取本地信息", systemImage: "arrow.clockwise")
                     }
                     .controlSize(.small)
-
-                    Spacer()
                 }
-
-                Text(validationMessage.isEmpty ? verificationText(store.accountInfo.verification) : validationMessage)
-                    .font(.caption)
-                    .foregroundStyle(verificationColor(store.accountInfo.verification))
-                    .lineLimit(2)
             }
 
             Divider()
@@ -209,15 +202,19 @@ private struct UsageSettingsPane: View {
                     TextField("8000", text: $goalWanText)
                         .textFieldStyle(.roundedBorder)
                         .font(.body.monospacedDigit())
-                        .frame(width: 88)
+                        .frame(width: 90)
                     Text("万 token / 天")
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Button(action: saveGoal) {
+                        Label("保存", systemImage: "checkmark")
+                    }
+                    .disabled(parsedGoal == nil)
                 }
 
-                Text("当前目标 \(formatTokenCount(store.snapshot.dailyTokenGoal)) token；本地日志优先用于统计。")
+                Text(saveMessage.isEmpty ? "当前目标 \(formatTokenCount(store.snapshot.dailyTokenGoal)) token" : saveMessage)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(saveMessage.isEmpty ? Color.secondary : Color.green)
             }
 
             Divider()
@@ -225,7 +222,7 @@ private struct UsageSettingsPane: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("数据来源")
                     .font(.subheadline.weight(.semibold))
-                Text("默认使用本地 ~/.codex/sessions 日志统计 token，并读取日志里的 rate_limits 显示 5 小时和周配额。官网数据适合后续作为校验通道。")
+                Text("用量从本地 ~/.codex/sessions 日志读取；5 小时和周配额来自日志中的 rate_limits。账号信息从本地 ~/.codex/auth.json 动态解析，不在程序中写死。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -233,8 +230,11 @@ private struct UsageSettingsPane: View {
 
             Spacer()
         }
-        .padding(16)
-        .onAppear(perform: load)
+        .padding(20)
+        .frame(width: 420, height: 360)
+        .onAppear {
+            goalWanText = String(store.snapshot.dailyTokenGoal / 10_000)
+        }
     }
 
     private var parsedGoal: Int? {
@@ -243,52 +243,30 @@ private struct UsageSettingsPane: View {
         return Int((wan * 10_000).rounded())
     }
 
-    private func load() {
-        let settings = SettingsStore.shared
-        displayName = settings.accountDisplayName
-        email = settings.accountEmail
-        accountID = settings.accountID
-        goalWanText = String(store.snapshot.dailyTokenGoal / 10_000)
-        validationMessage = ""
-    }
-
-    private func save() {
+    private func saveGoal() {
         guard let parsedGoal else { return }
-        store.updateAccount(displayName: displayName, email: email, accountID: accountID)
         store.updateDailyTokenGoal(parsedGoal)
         goalWanText = String(parsedGoal / 10_000)
-        validationMessage = verificationText(store.accountInfo.verification)
+        saveMessage = "已保存：每日目标 \(formatTokenCount(parsedGoal)) token"
     }
 
-    private func validateFromLocalAuth() {
-        let local = store.localAuthAccountInfo()
-        if email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            email = local.email ?? ""
-        }
-        if displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            displayName = local.name ?? ""
-        }
-        if accountID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            accountID = local.accountID ?? ""
-        }
-        store.updateAccount(displayName: displayName, email: email, accountID: accountID)
-        validationMessage = verificationText(store.accountInfo.verification)
+    private func refreshLocal() {
+        store.refreshAccountInfo()
+        store.refresh()
+        saveMessage = "已重新读取本地账号与用量"
     }
-}
 
-private struct LabeledField: View {
-    let title: String
-    @Binding var text: String
-    let placeholder: String
-
-    var body: some View {
-        HStack(spacing: 8) {
+    private func accountLine(_ title: String, _ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 48, alignment: .leading)
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.roundedBorder)
+                .frame(width: 52, alignment: .leading)
+            Text(value)
+                .font(.body)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
         }
     }
 }
@@ -326,11 +304,17 @@ private struct ProgressMetricRow: View {
 
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.secondary.opacity(0.16))
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.secondary.opacity(0.12))
 
-                    Capsule()
-                        .fill(tint.gradient)
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(
+                            LinearGradient(
+                                colors: [tint.opacity(0.88), tint],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
                         .frame(width: proxy.size.width * clampedPercent / 100)
                 }
             }
@@ -352,6 +336,10 @@ private struct ProgressMetricRow: View {
                     .lineLimit(1)
             }
         }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .background(Color.secondary.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private var percentLabel: String {
@@ -417,11 +405,7 @@ private func accountSubtitle(_ account: CodexAccountInfo, snapshot: UsageSnapsho
 private func verificationText(_ verification: AccountVerification) -> String {
     switch verification {
     case .verifiedLocalAuth:
-        return "本地验证通过"
-    case .mismatchLocalAuth:
-        return "与本地 Codex 登录不一致"
-    case .manualOnly:
-        return "仅手动填写，未验证"
+        return "本地账号已读取"
     case .missingLocalAuth:
         return "未找到本地 Codex 登录"
     }
@@ -431,10 +415,6 @@ private func verificationIcon(_ verification: AccountVerification) -> String {
     switch verification {
     case .verifiedLocalAuth:
         return "checkmark.seal.fill"
-    case .mismatchLocalAuth:
-        return "exclamationmark.triangle.fill"
-    case .manualOnly:
-        return "person.crop.circle"
     case .missingLocalAuth:
         return "questionmark.circle"
     }
@@ -444,11 +424,40 @@ private func verificationColor(_ verification: AccountVerification) -> Color {
     switch verification {
     case .verifiedLocalAuth:
         return .green
-    case .mismatchLocalAuth:
-        return .orange
-    case .manualOnly, .missingLocalAuth:
+    case .missingLocalAuth:
         return .secondary
     }
+}
+
+private func dailyGoalColor(_ percent: Double) -> Color {
+    if percent >= 100 {
+        return Color(red: 0.20, green: 0.78, blue: 0.35)
+    }
+    return Color(red: 0.18, green: 0.70, blue: 0.42)
+}
+
+private func fiveHourColor(_ percent: Double?) -> Color {
+    guard let percent else {
+        return Color(red: 0.18, green: 0.70, blue: 0.42)
+    }
+    if percent < 70 {
+        return Color(red: 0.18, green: 0.70, blue: 0.42)
+    } else if percent < 90 {
+        return .orange
+    }
+    return .red
+}
+
+private func weeklyColor(_ percent: Double?) -> Color {
+    guard let percent else {
+        return Color(red: 0.38, green: 0.65, blue: 0.98)
+    }
+    if percent < 70 {
+        return Color(red: 0.38, green: 0.65, blue: 0.98)
+    } else if percent < 90 {
+        return Color(red: 0.70, green: 0.38, blue: 0.94)
+    }
+    return Color(red: 0.83, green: 0.24, blue: 0.48)
 }
 
 private func shortAccountID(_ id: String) -> String {

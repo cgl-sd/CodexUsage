@@ -14,9 +14,11 @@ public final class UsageStore: ObservableObject {
     /// 当前聚合快照（UI 绑定此属性）
     @Published public var snapshot: UsageSnapshot
     @Published public private(set) var accountInfo: CodexAccountInfo
+    @Published public private(set) var isRefreshing = false
 
     /// 上次扫描时间（用于增量扫描）
     private var lastScanDate: Date
+    private var cachedEvents: [TokenCountEvent] = []
 
     /// 刷新定时器
     private var refreshTimer: Timer?
@@ -44,25 +46,43 @@ public final class UsageStore: ObservableObject {
 
     /// 启动：全量扫描 + 开启定时刷新。
     public func start() {
-        fullScan()
+        refresh()
         startTimer()
     }
 
     /// 手动刷新（下拉菜单「刷新」按钮用）。
     public func refresh() {
-        fullScan()
+        guard !isRefreshing else { return }
+        isRefreshing = true
+
+        let scanner = scanner
+        let task = Task.detached(priority: .utility) {
+            let events = scanner.scanAllEvents()
+            let accountInfo = CodexAccountResolver().resolve()
+            return (events: events, accountInfo: accountInfo)
+        }
+        Task { @MainActor [weak self] in
+            let result = await task.value
+            guard let self else { return }
+            self.cachedEvents = result.events
+            self.lastScanDate = Date()
+            self.accountInfo = result.accountInfo
+            self.updateSnapshot(from: result.events)
+            self.isRefreshing = false
+        }
     }
 
     public func updateDailyTokenGoal(_ goal: Int) {
         guard goal > 0 else { return }
         SettingsStore.shared.dailyTokenGoal = goal
-        fullScan()
+        if cachedEvents.isEmpty {
+            refresh()
+        } else {
+            updateSnapshot(from: cachedEvents)
+        }
     }
 
-    public func updateAccount(displayName: String, email: String, accountID: String) {
-        SettingsStore.shared.accountDisplayName = displayName
-        SettingsStore.shared.accountEmail = email
-        SettingsStore.shared.accountID = accountID
+    public func refreshAccountInfo() {
         accountInfo = CodexAccountResolver().resolve()
         onUpdate?()
     }
@@ -73,19 +93,27 @@ public final class UsageStore: ObservableObject {
 
     // MARK: - 私有方法
 
-    private func fullScan() {
-        let events = scanner.scanAllEvents()
-        lastScanDate = Date()
-        accountInfo = CodexAccountResolver().resolve()
-        updateSnapshot(from: events)
-    }
-
     private func incrementalScan() {
-        let newEvents = scanner.scanEventsModifiedSince(lastScanDate)
-        guard !newEvents.isEmpty else { return }
-        lastScanDate = Date()
-        // 增量需要和已有数据合并，这里简化为全量重算
-        fullScan()
+        guard !isRefreshing else { return }
+        isRefreshing = true
+
+        let scanner = scanner
+        let since = lastScanDate
+        let task = Task.detached(priority: .utility) {
+            let newEvents = scanner.scanEventsModifiedSince(since)
+            guard !newEvents.isEmpty else { return Optional<[TokenCountEvent]>.none }
+            return scanner.scanAllEvents()
+        }
+        Task { @MainActor [weak self] in
+            let events = await task.value
+            guard let self else { return }
+            if let events {
+                self.cachedEvents = events
+                self.lastScanDate = Date()
+                self.updateSnapshot(from: events)
+            }
+            self.isRefreshing = false
+        }
     }
 
     private func updateSnapshot(from events: [TokenCountEvent]) {

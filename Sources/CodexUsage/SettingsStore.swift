@@ -28,29 +28,11 @@ public final class SettingsStore: @unchecked Sendable {
         }
     }
 
-    public var accountDisplayName: String {
-        get { defaults.string(forKey: Key.accountDisplayName) ?? "" }
-        set { defaults.set(newValue, forKey: Key.accountDisplayName) }
-    }
-
-    public var accountEmail: String {
-        get { defaults.string(forKey: Key.accountEmail) ?? "" }
-        set { defaults.set(newValue, forKey: Key.accountEmail) }
-    }
-
-    public var accountID: String {
-        get { defaults.string(forKey: Key.accountID) ?? "" }
-        set { defaults.set(newValue, forKey: Key.accountID) }
-    }
-
     private let defaults = UserDefaults.standard
 
     private enum Key {
         static let dailyTokenGoal = "dailyTokenGoal"
         static let refreshInterval = "refreshInterval"
-        static let accountDisplayName = "accountDisplayName"
-        static let accountEmail = "accountEmail"
-        static let accountID = "accountID"
     }
 
     private init() {}
