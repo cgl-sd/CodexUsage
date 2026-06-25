@@ -192,34 +192,34 @@ struct UsageSettingsView: View {
     var body: some View {
         let account = store.accountInfo
 
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 9) {
             Text("设置")
                 .font(.title3.weight(.semibold))
+                .padding(.top, 4)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("本地账号")
-                    .font(.subheadline.weight(.semibold))
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("本地账号")
+                        .font(.subheadline.weight(.semibold))
+                    Spacer()
+                    Button(action: refreshLocal) {
+                        Label("重新读取", systemImage: "arrow.clockwise")
+                    }
+                    .controlSize(.small)
+                }
 
                 accountLine("邮箱", account.email ?? "未读取到")
                 accountLine("名称", account.name ?? "未读取到")
                 accountLine("计划", account.planType?.uppercased() ?? "未知")
-                accountLine("账号 ID", account.accountID.map(shortAccountID) ?? "未读取到")
 
-                HStack {
-                    Text(verificationText(account.verification))
-                        .font(.caption)
-                        .foregroundStyle(verificationColor(account.verification))
-                    Spacer()
-                    Button(action: refreshLocal) {
-                        Label("重新读取本地信息", systemImage: "arrow.clockwise")
-                    }
-                    .controlSize(.small)
-                }
+                Text(verificationText(account.verification))
+                    .font(.caption)
+                    .foregroundStyle(verificationColor(account.verification))
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("每日目标")
                     .font(.subheadline.weight(.semibold))
 
@@ -227,13 +227,15 @@ struct UsageSettingsView: View {
                     TextField("8000", text: $goalWanText)
                         .textFieldStyle(.roundedBorder)
                         .font(.body.monospacedDigit())
-                        .frame(width: 90)
+                        .frame(width: 76)
                     Text("万 token / 天")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button(action: saveGoal) {
                         Label("保存", systemImage: "checkmark")
                     }
+                    .controlSize(.small)
                     .disabled(parsedGoal == nil)
                 }
 
@@ -244,7 +246,7 @@ struct UsageSettingsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text("版本与更新")
                     .font(.subheadline.weight(.semibold))
 
@@ -280,19 +282,17 @@ struct UsageSettingsView: View {
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("数据来源")
                     .font(.subheadline.weight(.semibold))
-                Text("用量从本地 ~/.codex/sessions 日志读取；5 小时和周配额来自日志中的 rate_limits。账号信息从本地 ~/.codex/auth.json 动态解析，不在程序中写死。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                sourceLine("用量/限额", usageSourcePath)
+                sourceLine("账号", accountSourcePath)
             }
 
             Spacer()
         }
-        .padding(20)
-        .frame(width: 420, height: 420)
+        .padding(16)
+        .frame(width: 360, height: 368)
         .onAppear {
             goalWanText = String(store.snapshot.dailyTokenGoal / 10_000)
         }
@@ -302,6 +302,16 @@ struct UsageSettingsView: View {
         let trimmed = goalWanText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let wan = Double(trimmed), wan > 0 else { return nil }
         return Int((wan * 10_000).rounded())
+    }
+
+    private var usageSourcePath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/.codex/sessions"
+    }
+
+    private var accountSourcePath: String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/.codex/auth.json"
     }
 
     private func saveGoal() {
@@ -342,22 +352,30 @@ struct UsageSettingsView: View {
         }
     }
 
-    private func fetchLatestRelease() async -> (tagName: String, url: String, downloadURL: URL?)? {
-        guard let url = URL(string: "https://api.github.com/repos/cgl-sd/CodexUsage/releases/latest") else {
+    private func fetchLatestRelease() async -> (tagName: String, downloadURL: URL?)? {
+        guard let url = URL(string: "https://github.com/cgl-sd/CodexUsage/releases/latest") else {
             return nil
         }
 
         do {
             var request = URLRequest(url: url)
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            request.httpMethod = "HEAD"
+            request.setValue("CodexUsage/\(appVersionText())", forHTTPHeaderField: "User-Agent")
             request.timeoutInterval = 8
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (_, response) = try await URLSession.shared.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 return nil
             }
-            let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-            let dmg = release.assets.first { $0.name.lowercased().hasSuffix(".dmg") }?.browserDownloadURL
-            return (release.tagName, release.htmlURL, dmg.flatMap(URL.init(string:)))
+            guard let finalURL = response.url,
+                  finalURL.pathComponents.contains("tag"),
+                  let tagName = finalURL.pathComponents.last,
+                  tagName.isEmpty == false,
+                  tagName != "latest"
+            else {
+                return nil
+            }
+            let downloadURL = URL(string: "https://github.com/cgl-sd/CodexUsage/releases/download/\(tagName)/CodexUsage.dmg")
+            return (tagName, downloadURL)
         } catch {
             return nil
         }
@@ -394,7 +412,7 @@ struct UsageSettingsView: View {
 
     private func appVersionText() -> String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        return version ?? "0.1.1"
+        return version ?? "0.1.2"
     }
 
     private func isVersion(_ candidate: String, newerThan current: String) -> Bool {
@@ -422,35 +440,28 @@ struct UsageSettingsView: View {
             Text(title)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .leading)
+                .frame(width: 44, alignment: .leading)
             Text(value)
-                .font(.body)
+                .font(.caption)
                 .lineLimit(1)
                 .truncationMode(.middle)
             Spacer()
         }
     }
-}
 
-private struct GitHubRelease: Decodable {
-    let tagName: String
-    let htmlURL: String
-    let assets: [GitHubReleaseAsset]
-
-    enum CodingKeys: String, CodingKey {
-        case tagName = "tag_name"
-        case htmlURL = "html_url"
-        case assets
-    }
-}
-
-private struct GitHubReleaseAsset: Decodable {
-    let name: String
-    let browserDownloadURL: String
-
-    enum CodingKeys: String, CodingKey {
-        case name
-        case browserDownloadURL = "browser_download_url"
+    private func sourceLine(_ title: String, _ path: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 52, alignment: .leading)
+            Text(verbatim: path)
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+        }
     }
 }
 
