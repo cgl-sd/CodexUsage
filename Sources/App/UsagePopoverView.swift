@@ -79,7 +79,7 @@ private struct UsageOverviewPane: View {
             HStack(spacing: 8) {
                 Image(systemName: "clock.arrow.circlepath")
                     .foregroundStyle(.secondary)
-                Text("更新于 \(updatedText(snapshot.lastUpdated))")
+                Text("刷新于 \(updatedText(store.lastRefreshCompletedAt))")
                 Spacer()
             }
             .font(.caption)
@@ -107,9 +107,7 @@ private struct UsageOverviewPane: View {
 
                 HStack(spacing: 4) {
                     Button(action: onRefresh) {
-                        Image(systemName: "arrow.clockwise")
-                            .rotationEffect(.degrees(store.isRefreshing ? 180 : 0))
-                            .frame(width: 20, height: 20)
+                        RefreshIcon(isRefreshing: store.isRefreshing)
                     }
                     .buttonStyle(.plain)
                     .disabled(store.isRefreshing)
@@ -179,6 +177,36 @@ private struct UsageOverviewPane: View {
             .clipShape(Capsule())
     }
 
+}
+
+private struct RefreshIcon: View {
+    let isRefreshing: Bool
+    @State private var rotation = 0.0
+
+    var body: some View {
+        Image(systemName: "arrow.clockwise")
+            .rotationEffect(.degrees(rotation))
+            .frame(width: 20, height: 20)
+            .onAppear {
+                updateRotation(isRefreshing)
+            }
+            .onChange(of: isRefreshing) { _, newValue in
+                updateRotation(newValue)
+            }
+    }
+
+    private func updateRotation(_ refreshing: Bool) {
+        if refreshing {
+            rotation = 0
+            withAnimation(.linear(duration: 0.8).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+        } else {
+            withAnimation(.easeOut(duration: 0.15)) {
+                rotation = 0
+            }
+        }
+    }
 }
 
 struct UsageSettingsView: View {
@@ -412,7 +440,7 @@ struct UsageSettingsView: View {
 
     private func appVersionText() -> String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        return version ?? "0.1.3"
+        return version ?? "0.1.4"
     }
 
     private func isVersion(_ candidate: String, newerThan current: String) -> Bool {

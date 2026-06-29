@@ -1,5 +1,18 @@
 # CodexUsage Release Notes
 
+## v0.1.4 - 2026-06-29
+
+Energy usage optimization for background log monitoring.
+
+### Changes
+
+- Track per-file scan positions for local Codex jsonl logs.
+- Keep startup and manual refresh as full scans for correctness.
+- Change background refresh to read only newly appended log bytes instead of rescanning all historical session logs.
+- Fall back to a full rescan if a log file is removed or truncated.
+- Show the refresh completion time in the popover footer.
+- Keep the refresh icon spinning until the active refresh finishes.
+
 ## v0.1.3 - 2026-06-25
 
 Usage display refinement for cached token accounting.

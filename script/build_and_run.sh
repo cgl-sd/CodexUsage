@@ -37,6 +37,8 @@ cat >"$INFO_PLIST" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.4</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>NSPrincipalClass</key>

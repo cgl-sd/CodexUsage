@@ -15,10 +15,11 @@ public final class UsageStore: ObservableObject {
     @Published public var snapshot: UsageSnapshot
     @Published public private(set) var accountInfo: CodexAccountInfo
     @Published public private(set) var isRefreshing = false
+    @Published public private(set) var lastRefreshCompletedAt: Date?
 
-    /// 上次扫描时间（用于增量扫描）
-    private var lastScanDate: Date
+    /// 已缓存事件和每个日志文件的已读位置（用于增量扫描）
     private var cachedEvents: [TokenCountEvent] = []
+    private var fileStates: [CodexLogScanner.FileState] = []
     private var lastSnapshotDay: Date?
 
     /// 刷新定时器
@@ -43,7 +44,6 @@ public final class UsageStore: ObservableObject {
             lastUpdated: nil
         )
         self.accountInfo = CodexAccountResolver().resolve()
-        self.lastScanDate = .distantPast
     }
 
     /// 启动：全量扫描 + 开启定时刷新。
@@ -59,17 +59,18 @@ public final class UsageStore: ObservableObject {
 
         let scanner = scanner
         let task = Task.detached(priority: .utility) {
-            let events = scanner.scanAllEvents()
+            let result = scanner.scanAllEventsWithState()
             let accountInfo = CodexAccountResolver().resolve()
-            return (events: events, accountInfo: accountInfo)
+            return (scan: result, accountInfo: accountInfo)
         }
         Task { @MainActor [weak self] in
             let result = await task.value
             guard let self else { return }
-            self.cachedEvents = result.events
-            self.lastScanDate = Date()
+            self.cachedEvents = result.scan.events
+            self.fileStates = result.scan.fileStates
             self.accountInfo = result.accountInfo
-            self.updateSnapshot(from: result.events)
+            self.updateSnapshot(from: result.scan.events)
+            self.lastRefreshCompletedAt = Date()
             self.isRefreshing = false
         }
     }
@@ -100,22 +101,29 @@ public final class UsageStore: ObservableObject {
         isRefreshing = true
 
         let scanner = scanner
-        let since = lastScanDate
+        let fileStates = fileStates
         let task = Task.detached(priority: .utility) {
-            let newEvents = scanner.scanEventsModifiedSince(since)
-            guard !newEvents.isEmpty else { return Optional<[TokenCountEvent]>.none }
-            return scanner.scanAllEvents()
+            scanner.scanIncrementalEvents(since: fileStates)
         }
         Task { @MainActor [weak self] in
-            let events = await task.value
+            let result = await task.value
             guard let self else { return }
-            if let events {
-                self.cachedEvents = events
-                self.lastScanDate = Date()
-                self.updateSnapshot(from: events)
+            if result.requiresFullRescan {
+                self.isRefreshing = false
+                self.refresh()
+                return
+            }
+
+            self.fileStates = result.fileStates
+
+            if result.events.isEmpty == false {
+                self.cachedEvents.append(contentsOf: result.events)
+                self.cachedEvents.sort { $0.timestamp < $1.timestamp }
+                self.updateSnapshot(from: self.cachedEvents)
             } else if self.shouldRecomputeForCurrentDay(), self.cachedEvents.isEmpty == false {
                 self.updateSnapshot(from: self.cachedEvents)
             }
+            self.lastRefreshCompletedAt = Date()
             self.isRefreshing = false
         }
     }
