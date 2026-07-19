@@ -61,13 +61,16 @@ if todayEvents.isEmpty {
 
 // rate_limits 验证：取最新一条带有效 rate_limits 的事件
 print("\n=== 配额窗口（最新有效记录）===")
-let latestWithLimits = events.last(where: { $0.rateLimits?.primary?.usedPercent != nil })
+let latestWithLimits = events.last {
+    $0.rateLimits?.primary?.usedPercent != nil ||
+        $0.rateLimits?.secondary?.usedPercent != nil
+}
 if let rl = latestWithLimits?.rateLimits {
     if let p = rl.primary {
-        print("5小时窗口: 已用 \(p.usedPercent ?? -1)%，窗口 \(p.windowMinutes ?? -1) 分钟，重置于 \(df.string(from: p.resetsAt ?? Date()))")
+        print("primary窗口:   已用 \(p.usedPercent ?? -1)%，窗口 \(p.windowMinutes ?? -1) 分钟，重置于 \(df.string(from: p.resetsAt ?? Date()))")
     }
     if let s = rl.secondary {
-        print("7天窗口:   已用 \(s.usedPercent ?? -1)%，窗口 \(s.windowMinutes ?? -1) 分钟，重置于 \(df.string(from: s.resetsAt ?? Date()))")
+        print("secondary窗口: 已用 \(s.usedPercent ?? -1)%，窗口 \(s.windowMinutes ?? -1) 分钟，重置于 \(df.string(from: s.resetsAt ?? Date()))")
     }
     print("套餐: \(rl.planType ?? "未知")")
 } else {

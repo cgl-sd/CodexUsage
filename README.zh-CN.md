@@ -11,8 +11,7 @@ CodexUsage 是一个轻量级 macOS 菜单栏应用，用于查看本地 Codex t
 - 菜单栏进度圆环，用于显示每日 token 目标完成度。
 - 弹出面板显示：
   - 每日用量与可配置目标，
-  - 5 小时配额用量，
-  - 每周配额用量，
+  - 当前可用的 Codex 配额窗口，
   - 本地账号计划信息。
 - 每日用量会同时显示不含缓存的估算值，目标进度仍按含缓存总量计算。
 - 当剩余配额低于或等于 20% 时使用警示颜色。
@@ -28,7 +27,7 @@ CodexUsage 只读取本地 Codex 文件，并且会根据当前 macOS 用户的 
 - 用量和限额事件：`$HOME/.codex/sessions/**/*.jsonl`
 - 账号信息：`$HOME/.codex/auth.json`
 
-每日 token 用量通过本地 `token_count` 事件中的 `last_token_usage.total_tokens` 汇总得到。5 小时和每周配额百分比来自 Codex 写入本地事件里的 `rate_limits` 数据。
+每日 token 用量通过本地 `token_count` 事件中的 `last_token_usage.total_tokens` 汇总得到。配额百分比来自 Codex 写入本地事件里的当前可用 `rate_limits` 窗口。
 
 应用不会写死账号 ID、用户名或绝对路径。换到另一台 Mac 或另一个系统用户时，它会读取那个用户自己的本地 Codex 数据目录。
 

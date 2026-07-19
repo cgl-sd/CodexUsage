@@ -5,6 +5,8 @@ struct UsagePopoverView: View {
     let onOpenSettings: () -> Void
     let onRefresh: () -> Void
     let onQuit: () -> Void
+    let panelWidth: CGFloat
+    let panelHeight: CGFloat
 
     var body: some View {
         UsageOverviewPane(
@@ -12,7 +14,7 @@ struct UsagePopoverView: View {
             onRefresh: onRefresh,
             onQuit: onQuit
         )
-        .frame(width: 314, height: 352, alignment: .topLeading)
+        .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
         .background(popoverBackground)
     }
 
@@ -55,23 +57,16 @@ private struct UsageOverviewPane: View {
                     resetText: "不含缓存 \(formatTokenCount(snapshot.todayUsageWithoutCache))"
                 )
 
-                ProgressMetricRow(
-                    title: "5 小时用量",
-                    iconName: "clock.fill",
-                    tint: fiveHourColor(snapshot.rateLimits?.primary?.usedPercent),
-                    percent: snapshot.rateLimits?.primary?.usedPercent,
-                    detail: percentDetail(snapshot.rateLimits?.primary?.usedPercent),
-                    resetText: resetText(snapshot.rateLimits?.primary?.resetsAt, style: .time)
-                )
-
-                ProgressMetricRow(
-                    title: "周用量",
-                    iconName: "calendar",
-                    tint: weeklyColor(snapshot.rateLimits?.secondary?.usedPercent),
-                    percent: snapshot.rateLimits?.secondary?.usedPercent,
-                    detail: percentDetail(snapshot.rateLimits?.secondary?.usedPercent),
-                    resetText: resetText(snapshot.rateLimits?.secondary?.resetsAt, style: .date)
-                )
+                ForEach(limitMetrics(from: snapshot.rateLimits)) { metric in
+                    ProgressMetricRow(
+                        title: metric.title,
+                        iconName: metric.iconName,
+                        tint: metric.tint,
+                        percent: metric.percent,
+                        detail: percentDetail(metric.percent),
+                        resetText: resetText(metric.resetsAt, style: metric.resetStyle)
+                    )
+                }
             }
 
             Divider()
@@ -177,6 +172,16 @@ private struct UsageOverviewPane: View {
             .clipShape(Capsule())
     }
 
+}
+
+private struct LimitMetric: Identifiable {
+    let id: String
+    let title: String
+    let iconName: String
+    let tint: Color
+    let percent: Double?
+    let resetsAt: Date?
+    let resetStyle: ResetStyle
 }
 
 private struct RefreshIcon: View {
@@ -440,7 +445,7 @@ struct UsageSettingsView: View {
 
     private func appVersionText() -> String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
-        return version ?? "0.1.4"
+        return version ?? "0.1.5"
     }
 
     private func isVersion(_ candidate: String, newerThan current: String) -> Bool {
@@ -543,8 +548,11 @@ private struct ProgressMetricRow: View {
 
             HStack {
                 Text(detail)
+                    .layoutPriority(1)
+                    .truncationMode(.tail)
                 Spacer()
                 Text(resetText)
+                    .truncationMode(.tail)
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -566,6 +574,76 @@ private struct ProgressMetricRow: View {
 private enum ResetStyle {
     case time
     case date
+}
+
+private func limitMetrics(from rateLimits: RateLimits?) -> [LimitMetric] {
+    guard let rateLimits else {
+        return [
+            LimitMetric(
+                id: "quota-placeholder",
+                title: "配额用量",
+                iconName: "gauge.with.dots.needle.67percent",
+                tint: quotaColor(nil, windowMinutes: nil),
+                percent: nil,
+                resetsAt: nil,
+                resetStyle: .date
+            )
+        ]
+    }
+
+    let windows = [
+        ("primary", rateLimits.primary),
+        ("secondary", rateLimits.secondary),
+    ]
+
+    let metrics = windows.compactMap { id, window -> LimitMetric? in
+        guard let window, window.usedPercent != nil || window.resetsAt != nil else {
+            return nil
+        }
+        let kind = quotaWindowKind(minutes: window.windowMinutes)
+        return LimitMetric(
+            id: id,
+            title: kind.title,
+            iconName: kind.iconName,
+            tint: quotaColor(window.usedPercent, windowMinutes: window.windowMinutes),
+            percent: window.usedPercent,
+            resetsAt: window.resetsAt,
+            resetStyle: kind.resetStyle
+        )
+    }
+
+    if metrics.isEmpty {
+        return [
+            LimitMetric(
+                id: "quota-placeholder",
+                title: "配额用量",
+                iconName: "gauge.with.dots.needle.67percent",
+                tint: quotaColor(nil, windowMinutes: nil),
+                percent: nil,
+                resetsAt: nil,
+                resetStyle: .date
+            )
+        ]
+    }
+    return metrics
+}
+
+private func quotaWindowKind(minutes: Int?) -> (title: String, iconName: String, resetStyle: ResetStyle) {
+    guard let minutes else {
+        return ("配额用量", "gauge.with.dots.needle.67percent", .date)
+    }
+    if minutes == 300 {
+        return ("5 小时用量", "clock.fill", .time)
+    }
+    if minutes == 10_080 {
+        return ("周用量", "calendar", .date)
+    }
+    if minutes < 1_440 {
+        let hours = max(1, Int((Double(minutes) / 60.0).rounded()))
+        return ("\(hours) 小时用量", "clock.fill", .time)
+    }
+    let days = max(1, Int((Double(minutes) / 1_440.0).rounded()))
+    return ("\(days) 天用量", "calendar", .date)
 }
 
 private func percentDetail(_ percent: Double?) -> String {
@@ -638,29 +716,19 @@ private func dailyGoalColor(_ percent: Double) -> Color {
     return Color(red: 0.18, green: 0.70, blue: 0.42)
 }
 
-private func fiveHourColor(_ percent: Double?) -> Color {
+private func quotaColor(_ percent: Double?, windowMinutes: Int?) -> Color {
+    let base = (windowMinutes ?? 0) >= 1_440
+        ? Color(red: 0.38, green: 0.65, blue: 0.98)
+        : Color(red: 0.18, green: 0.70, blue: 0.42)
     guard let percent else {
-        return Color(red: 0.18, green: 0.70, blue: 0.42)
+        return base
     }
     if percent >= 80 {
         return .red
     } else if percent >= 65 {
         return .orange
     } else {
-        return Color(red: 0.18, green: 0.70, blue: 0.42)
-    }
-}
-
-private func weeklyColor(_ percent: Double?) -> Color {
-    guard let percent else {
-        return Color(red: 0.38, green: 0.65, blue: 0.98)
-    }
-    if percent >= 80 {
-        return .red
-    } else if percent >= 65 {
-        return Color(red: 0.70, green: 0.38, blue: 0.94)
-    } else {
-        return Color(red: 0.38, green: 0.65, blue: 0.98)
+        return base
     }
 }
 

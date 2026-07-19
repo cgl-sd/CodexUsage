@@ -55,11 +55,11 @@ public struct TokenCounts: Decodable, Equatable, Sendable {
     }
 }
 
-/// Codex 的用量窗口限制（5 小时 / 每周）。
+/// Codex 的用量窗口限制。
 public struct UsageWindow: Decodable, Equatable, Sendable {
     /// 已用百分比（0–100）。可能为 nil（如会话结束的清理记录）。
     public let usedPercent: Double?
-    /// 窗口长度（分钟）：primary=300（5h），secondary=10080（7天）
+    /// 窗口长度（分钟），由 Codex 当前策略决定。
     public let windowMinutes: Int?
     /// 重置时间戳
     public let resetsAt: Date?
@@ -83,7 +83,7 @@ public struct UsageWindow: Decodable, Equatable, Sendable {
     }
 }
 
-/// rate_limits 事件负载：含 primary（5h）和 secondary（周）两个窗口。
+/// rate_limits 事件负载：Codex 可能写入 primary / secondary 两个窗口。
 public struct RateLimits: Decodable, Equatable, Sendable {
     public let primary: UsageWindow?
     public let secondary: UsageWindow?

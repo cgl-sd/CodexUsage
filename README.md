@@ -11,8 +11,7 @@ CodexUsage is a lightweight macOS menu bar app for monitoring local Codex token 
 - Menu bar progress ring for daily token goal progress.
 - Popover dashboard for:
   - daily usage against a configurable goal,
-  - 5-hour quota usage,
-  - weekly quota usage,
+  - currently available Codex quota windows,
   - local account plan display.
 - Daily usage includes a without-cache estimate alongside the goal progress.
 - Warning colors when quota remaining falls to 20% or less.
@@ -28,7 +27,7 @@ CodexUsage reads local Codex files only, resolved from the current macOS user's 
 - Usage and quota events: `$HOME/.codex/sessions/**/*.jsonl`
 - Account metadata: `$HOME/.codex/auth.json`
 
-Daily token usage is calculated by summing `last_token_usage.total_tokens` from local `token_count` events. The 5-hour and weekly quota percentages come from the `rate_limits` values written by Codex into those local events.
+Daily token usage is calculated by summing `last_token_usage.total_tokens` from local `token_count` events. Quota percentages come from the currently available `rate_limits` windows written by Codex into those local events.
 
 The app does not hardcode account IDs, usernames, or absolute paths. On each Mac, it uses that user's local Codex data path.
 

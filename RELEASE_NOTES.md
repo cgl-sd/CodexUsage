@@ -1,5 +1,13 @@
 # CodexUsage Release Notes
 
+## v0.1.5 - 2026-07-19
+
+### Changes
+
+- Optimized the menu interaction flow, including automatic popover dismissal when clicking outside the menu.
+- Adapted quota display to Codex's current `rate_limits` windows, covering the temporary removal of the 5-hour quota.
+- Tuned popover sizing for weekly-only quota data to reduce unused space and avoid clipped content.
+
 ## v0.1.4 - 2026-06-29
 
 Energy usage optimization for background log monitoring.
