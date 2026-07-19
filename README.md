@@ -33,6 +33,10 @@ The app does not hardcode account IDs, usernames, or absolute paths. On each Mac
 
 No usage data is uploaded by this app.
 
+## Recent Updates
+
+- v0.1.5 optimizes the menu interaction flow and adapts quota display for Codex's temporary removal of the 5-hour quota window.
+
 ## Installation
 
 Download `CodexUsage.dmg` from the release page.
